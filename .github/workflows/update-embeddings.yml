@@ -1,0 +1,108 @@
+name: File Change Workflow
+
+on:
+  push:
+    # Run only if these files change (excluding dotfiles/folders)
+    paths:
+      - '**'
+    paths-ignore:
+      - '**/.*'    # Ignore any file/folder starting with a dot
+      - '.*/**'    # Ignore any file/folder inside a dotfolder
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**'
+    paths-ignore:
+      - '**/.*'
+      - '.*/**'
+
+jobs:
+  check-file-changes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: files
+        run: |
+          echo "Created files:" > created_files.txt
+          git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.sha }} | tee -a created_files.txt
+          echo "Deleted files:" > deleted_files.txt
+          git diff --name-only --diff-filter=D ${{ github.event.before }} ${{ github.sha }} | tee -a deleted_files.txt
+          echo "Modified files:" > modified_files.txt
+          git diff --name-only --diff-filter=M ${{ github.event.before }} ${{ github.sha }} | tee -a modified_files.txt
+          echo "Renamed files:" > renamed_files.txt
+          git diff --name-only --diff-filter=R ${{ github.event.before }} ${{ github.sha }} | tee -a renamed_files.txt
+
+      - name: Update embeddings for changed files
+        env:
+          MCP_SERVER_URL: https://mcp-shy-meadow-2912.fly.dev
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -e
+          
+          # Check if server URL is set
+          if [ -z "${MCP_SERVER_URL}" ]; then
+            echo "Error: MCP_SERVER_URL is not set"
+            exit 1
+          fi
+
+          success_count=0
+          failure_count=0
+
+          # Function to check if a file should be ignored (dotfile or inside dotfolder)
+          is_ignored() {
+            [[ "$1" =~ (^|/)\. ]]
+          }
+
+          process_files() {
+            local file_list=$1
+            local action=$2
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              # Remove leading ./ if present
+              file="${file#./}"
+              if is_ignored "$file"; then
+                echo "Skipping ignored file: $file"
+                continue
+              fi
+              echo "Processing $action: $file"
+              if [ "$action" = "deleted" ]; then
+                response=$(curl -s -w "%{http_code}" -X POST "${MCP_SERVER_URL}/delete_specific_file_embeddings" \
+                  -H "Content-Type: application/json" \
+                  -d "{\"repo_name\": \"${REPO_NAME}\", \"file_path\": \"$file\"}")
+              else
+                response=$(curl -s -w "%{http_code}" -X POST "${MCP_SERVER_URL}/insert_specific_file_embeddings" \
+                  -H "Content-Type: application/json" \
+                  -d "{\"repo_name\": \"${REPO_NAME}\", \"file_path\": \"$file\"}")
+              fi
+              http_code="${response: -3}"
+              if [ "$http_code" -eq 200 ]; then
+                echo "✅ Successfully processed $file ($action)"
+                ((success_count++))
+              else
+                echo "❌ Failed to process $file ($action) (HTTP $http_code)"
+                echo "Response: ${response%???}"
+                ((failure_count++))
+              fi
+              sleep 1
+            done < "$file_list"
+          }
+
+          process_files created_files.txt created
+          process_files modified_files.txt modified
+          process_files renamed_files.txt renamed
+          process_files deleted_files.txt deleted
+
+          echo "📊 Summary:"
+          echo "  - Successfully processed: $success_count files"
+          echo "  - Failed to process: $failure_count files"
+
+          if [ $failure_count -gt 0 ]; then
+            echo "❌ ($failure_count) files failed to process"
+            exit 1
+          else
+            echo "✅ All files processed successfully"
+            exit 0
+          fi 
