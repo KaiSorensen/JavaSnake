@@ -27,7 +27,7 @@ jobs:
     - name: Update embeddings for changed files
       if: steps.changed-files.outputs.any_changed == 'true'
       env:
-        MCP_SERVER_URL: ${{ secrets.MCP_SERVER_URL }}
+        MCP_SERVER_URL: https://mcp-shy-meadow-2912.fly.dev
         REPO_NAME: ${{ github.event.repository.name }}
       run: |
         echo "Repository: ${REPO_NAME}"
@@ -38,7 +38,7 @@ jobs:
         
         # Check if server URL is set
         if [ -z "${MCP_SERVER_URL}" ]; then
-          echo "Error: MCP_SERVER_URL secret is not set"
+          echo "Error: MCP_SERVER_URL is not set"
           exit 1
         fi
         
