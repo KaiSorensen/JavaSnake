@@ -51,31 +51,41 @@ jobs:
           success_count=0
           failure_count=0
 
+          # Function to filter out dotfiles and files inside dotfolders
+          filter_ignored() {
+            grep -Ev '^\.|/\.'
+          }
+
           process_files() {
             local file_list=$1
             local action=$2
             while IFS= read -r file; do
               [ -z "$file" ] && continue
-              echo "Processing $action: $file"
-              if [ "$action" = "deleted" ]; then
-                response=$(curl -s -w "%{http_code}" -X POST "${MCP_SERVER_URL}/delete_specific_file_embeddings" \
-                  -H "Content-Type: application/json" \
-                  -d "{\"repo_name\": \"${REPO_NAME}\", \"file_path\": \"$file\"}")
+              # Skip dotfiles and files inside dotfolders
+              if echo "$file" | filter_ignored | grep -q .; then
+                echo "Processing $action: $file"
+                if [ "$action" = "deleted" ]; then
+                  response=$(curl -s -w "%{http_code}" -X POST "${MCP_SERVER_URL}/delete_specific_file_embeddings" \
+                    -H "Content-Type: application/json" \
+                    -d "{\"repo_name\": \"${REPO_NAME}\", \"file_path\": \"$file\"}")
+                else
+                  response=$(curl -s -w "%{http_code}" -X POST "${MCP_SERVER_URL}/insert_specific_file_embeddings" \
+                    -H "Content-Type: application/json" \
+                    -d "{\"repo_name\": \"${REPO_NAME}\", \"file_path\": \"$file\"}")
+                fi
+                http_code="${response: -3}"
+                if [ "$http_code" -eq 200 ]; then
+                  echo "✅ Successfully processed $file ($action)"
+                  ((success_count++))
+                else
+                  echo "❌ Failed to process $file ($action) (HTTP $http_code)"
+                  echo "Response: ${response%???}"
+                  ((failure_count++))
+                fi
+                sleep 1
               else
-                response=$(curl -s -w "%{http_code}" -X POST "${MCP_SERVER_URL}/insert_specific_file_embeddings" \
-                  -H "Content-Type: application/json" \
-                  -d "{\"repo_name\": \"${REPO_NAME}\", \"file_path\": \"$file\"}")
+                echo "Skipping ignored file: $file"
               fi
-              http_code="${response: -3}"
-              if [ "$http_code" -eq 200 ]; then
-                echo "✅ Successfully processed $file ($action)"
-                ((success_count++))
-              else
-                echo "❌ Failed to process $file ($action) (HTTP $http_code)"
-                echo "Response: ${response%???}"
-                ((failure_count++))
-              fi
-              sleep 1
             done < "$file_list"
           }
 
