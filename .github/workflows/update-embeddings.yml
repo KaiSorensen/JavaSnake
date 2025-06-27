@@ -20,12 +20,9 @@ jobs:
       with:
         files_ignore: |
           .github/**
-          *.md
           .gitignore
-          LICENSE
-          README*
-          *.txt
           *.log
+          .env
 
     - name: Update embeddings for changed files
       if: steps.changed-files.outputs.any_changed == 'true'
