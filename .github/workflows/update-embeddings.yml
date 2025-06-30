@@ -7,24 +7,6 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  check-file-changes:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get changed files
-        id: files
-        run: |
-          echo "Created files:"
-          git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.sha }}
-          echo "Deleted files:"
-          git diff --name-only --diff-filter=D ${{ github.event.before }} ${{ github.sha }}
-          echo "Modified files:"
-          git diff --name-only --diff-filter=M ${{ github.event.before }} ${{ github.sha }}
-          echo "Renamed files:"
-          git diff --name-only --diff-filter=R ${{ github.event.before }} ${{ github.sha }}
-
   update-embeddings:
     runs-on: ubuntu-latest
     
