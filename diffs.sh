@@ -12,6 +12,8 @@ clear
 # git diff --cached --name-only --diff-filter=M
 # echo -e "\n[-] Staged Deleted Files:"
 # git diff --cached --name-only --diff-filter=D
+# echo -e "\n[~] Staged Renamed/Moved Files:"
+# git diff --cached --name-status --diff-filter=R
 # echo -e "\n"
 
 # echo "--- Unstaged Changes (Not Yet Staged) ---"
@@ -19,6 +21,8 @@ clear
 # git diff --name-only --diff-filter=M
 # echo -e "\n[-] Unstaged Deleted Files:"
 # git diff --name-only --diff-filter=D
+# echo -e "\n[~] Unstaged Renamed/Moved Files:"
+# git diff --name-status --diff-filter=R
 # echo -e "\n[?] Untracked New Files:"
 # git ls-files --others --exclude-standard
 # echo -e "\n"
@@ -30,6 +34,8 @@ echo -e "\n[*] Modified Files in Last Commit:"
 git diff --name-only --diff-filter=M HEAD~1 HEAD
 echo -e "\n[-] Deleted Files in Last Commit:"
 git diff --name-only --diff-filter=D HEAD~1 HEAD
+echo -e "\n[~] Renamed/Moved Files in Last Commit:"
+git diff --name-status --diff-filter=R HEAD~1 HEAD
 echo -e "\n"
 
 echo -e "[+] Added Directories in Last Commit:"
