@@ -27,22 +27,22 @@
 # echo -e "\n"
 
 echo "--- Changes in Last Commit (HEAD vs HEAD~1) ---"
-echo -e "\n[+] Added Files in Last Commit:"
+echo -e "\n[+] (call embed new file) Added Files in Last Commit:"
 git diff --name-only --diff-filter=A HEAD~1 HEAD
-echo -e "\n[*] Modified Files in Last Commit:"
+echo -e "\n[*] (call re-embed current file)Modified Files in Last Commit:"
 git diff --name-only --diff-filter=M HEAD~1 HEAD
-echo -e "\n[-] Deleted Files in Last Commit:"
+echo -e "\n[-] (call delete current file) Deleted Files in Last Commit:"
 git diff --name-only --diff-filter=D HEAD~1 HEAD
 echo -e "\n[~] Renamed/Moved Files in Last Commit:"
 git diff --name-status --diff-filter=R HEAD~1 HEAD
 echo -e "\n"
 
-echo -e "[+] Added Directories in Last Commit:"
+echo -e "[+] (call embed new directory) Added Directories in Last Commit:"
 # Compare the directory trees of the last two commits to find added directories
 comm -13 <(git ls-tree -r -d --name-only HEAD~1 | sort) <(git ls-tree -r -d --name-only HEAD | sort)
 echo -e "\n"
 
-echo -e "[-] Deleted Directories in Last Commit:"
+echo -e "[-] (call delete existing directory) Deleted Directories in Last Commit:"
 # Compare the directory trees of the last two commits to find deleted directories
 comm -23 <(git ls-tree -r -d --name-only HEAD~1 | sort) <(git ls-tree -r -d --name-only HEAD | sort)
 echo -e "\n" 
