@@ -1,5 +1,4 @@
 #!/bin/bash
-clear
 
 # This script provides a comprehensive overview of changes in the git repository,
 # including staged, unstaged, and commit-to-commit differences for both
