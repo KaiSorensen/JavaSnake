@@ -10,3 +10,5 @@ dump/
 downloadables/
 
 # anything starting with a dot
+.github
+.env*
