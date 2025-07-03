@@ -1,3 +1,4 @@
-# anything starting with a dot
-.github/
-.env*
+# Ignore everything
+/*
+# But not this file!
+!.gitignore
