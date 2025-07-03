@@ -1,0 +1,14 @@
+# all the cache folders
+# any cache folder
+**/*cache*
+
+# persistent server data
+persistent-server-data/*
+
+# dump folder
+dump/
+downloadables/
+
+# anything starting with a dot
+**/.* 
+!.gitignore
