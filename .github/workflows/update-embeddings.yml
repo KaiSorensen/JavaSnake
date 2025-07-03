@@ -1,0 +1,97 @@
+name: File Change Workflow
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  update-embeddings:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history to allow arbitrary SHAs
+
+    - name: Get Changed Files and Directories
+      id: changed-files
+      run: |
+        echo "Getting changes between ${{ github.event.before }} and ${{ github.event.after }}..."
+
+        # Get all changes with detailed status using before/after SHAs
+        ADDED_FILES=$(git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.event.after }})
+        MODIFIED_FILES=$(git diff --name-only --diff-filter=M ${{ github.event.before }} ${{ github.event.after }})
+        DELETED_FILES=$(git diff --name-only --diff-filter=D ${{ github.event.before }} ${{ github.event.after }})
+        
+        # Get renamed/moved files with their paths
+        RENAMED_FILES_RAW=$(git diff --name-status --diff-filter=R ${{ github.event.before }} ${{ github.event.after }})
+        MOVED_FILES=""
+        
+        # Process renames to create move entries in format "old_path -> new_path"
+        while IFS=$'\t' read -r status old_path new_path; do
+          if [ -n "$old_path" ] && [ -n "$new_path" ]; then
+            MOVED_FILES=$(echo -e "$MOVED_FILES\n$old_path -> $new_path" | sed '/^$/d')
+          fi
+        done <<< "$(echo "$RENAMED_FILES_RAW" | grep '^R' | sed 's/^R[0-9]*\t//')"
+
+        # Get created and deleted directories using ls-tree comparison
+        CREATED_DIRECTORIES=$(comm -13 <(git ls-tree -r -d --name-only ${{ github.event.before }} 2>/dev/null | sort) <(git ls-tree -r -d --name-only ${{ github.event.after }} 2>/dev/null | sort))
+        DELETED_DIRECTORIES=$(comm -23 <(git ls-tree -r -d --name-only ${{ github.event.before }} 2>/dev/null | sort) <(git ls-tree -r -d --name-only ${{ github.event.after }} 2>/dev/null | sort))
+
+        # Set outputs as JSON arrays
+        echo "created_files_json=$(echo "$ADDED_FILES" | jq -R . | jq -s . | jq 'map(select(length > 0))')" >> $GITHUB_OUTPUT
+        echo "updated_files_json=$(echo "$MODIFIED_FILES" | jq -R . | jq -s . | jq 'map(select(length > 0))')" >> $GITHUB_OUTPUT
+        echo "deleted_files_json=$(echo "$DELETED_FILES" | jq -R . | jq -s . | jq 'map(select(length > 0))')" >> $GITHUB_OUTPUT
+        echo "moved_files_json=$(echo "$MOVED_FILES" | jq -R . | jq -s . | jq 'map(select(length > 0))')" >> $GITHUB_OUTPUT
+        echo "created_directories_json=$(echo "$CREATED_DIRECTORIES" | jq -R . | jq -s . | jq 'map(select(length > 0))')" >> $GITHUB_OUTPUT
+        echo "deleted_directories_json=$(echo "$DELETED_DIRECTORIES" | jq -R . | jq -s . | jq 'map(select(length > 0))')" >> $GITHUB_OUTPUT
+        
+        # Check if we have any changes
+        TOTAL_CHANGES=$(echo -e "$ADDED_FILES\n$MODIFIED_FILES\n$DELETED_FILES\n$MOVED_FILES\n$CREATED_DIRECTORIES\n$DELETED_DIRECTORIES" | sed '/^$/d' | wc -l)
+        echo "has_changes=$(if [ "$TOTAL_CHANGES" -gt 0 ]; then echo "true"; else echo "false"; fi)" >> $GITHUB_OUTPUT
+
+    - name: Update Embeddings
+      if: steps.changed-files.outputs.has_changes == 'true'
+      env:
+        MCP_SERVER_URL: http://143.198.109.85:8000
+        REPO_NAME: ${{ github.event.repository.name }}
+      run: |
+        echo "Sending batch update to MCP Server..."
+        
+        JSON_PAYLOAD=$(cat <<EOF
+        {
+          "repo_name": "${{ env.REPO_NAME }}",
+          "created_files": ${{ steps.changed-files.outputs.created_files_json }},
+          "updated_files": ${{ steps.changed-files.outputs.updated_files_json }},
+          "deleted_files": ${{ steps.changed-files.outputs.deleted_files_json }},
+          "moved_files": ${{ steps.changed-files.outputs.moved_files_json }},
+          "created_directories": ${{ steps.changed-files.outputs.created_directories_json }},
+          "deleted_directories": ${{ steps.changed-files.outputs.deleted_directories_json }}
+        }
+        EOF
+        )
+
+        echo "Payload:"
+        echo "$JSON_PAYLOAD"
+
+        response=$(curl -s -w "%{http_code}" -X POST "${{ env.MCP_SERVER_URL }}/batch_update_embeddings" \
+          -H "Content-Type: application/json" \
+          -d "$JSON_PAYLOAD")
+        
+        http_code="${response: -3}"
+        if [ "$http_code" -eq 200 ]; then
+          echo "✅ Successfully sent batch update."
+          echo "Response: ${response%???}"
+        else
+          echo "❌ Failed to send batch update (HTTP $http_code)"
+          echo "Response: ${response%???}"
+          exit 1
+        fi
+
+    - name: No changes detected
+      if: steps.changed-files.outputs.has_changes == 'false'
+      run: |
+        echo "No relevant file changes detected. Skipping embedding updates." 
