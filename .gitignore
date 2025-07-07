@@ -1,4 +1,6 @@
-# Ignore everything
-/*
-# But not this file!
+#  literally everything
+**/*
+**/.*
+
+#  but not this file
 !.gitignore
