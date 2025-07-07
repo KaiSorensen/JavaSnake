@@ -1,6 +1,4 @@
 #  literally everything
-**/*
+*
+.*
 **/.*
-
-#  but not this file
-!.gitignore
